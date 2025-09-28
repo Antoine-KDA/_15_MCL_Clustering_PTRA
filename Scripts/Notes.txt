@@ -1,0 +1,22 @@
+
+I removed duplicated patients (comparators that later became cases) in the data management script
+So now I need to recreate the descriptive table with the updated dataset
+
+No change in the conclusions. 
+
+Include the rhumatoid cvd into the resulsts pipeline: Table 1, 2, 3 + regression models. 
+Avoid over adjustment in the cvd specific regression. 
+
+Environnemental variables 
+Build a model with year since the first ever cvd overall + stratification table + description table
+In the runner file,  create environmental variables for running sensitivity analysis and move all output into a named folder with date. 
+Move all tables to one Excel sheet.
+
+Add descriptions to the figures and tables in the excel sheet. 
+
+Use write table that provides a better outputs in the excel. 
+
+Export the code list used and all important information: look back period, first cvd, etc...
+
+Changes I made: 
+- included the icd9 codes into the code lists. 
