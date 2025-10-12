@@ -50,7 +50,7 @@ red_index_inpat <- index_inpat %>%
   mutate(dx = as.character(trimws(dx, which = "both")), 
          patient_id = lopnr, 
          icd_code_type = "ICD-10-WHO") %>%
-  filter(position == "hdia") %>% # Keep only the main diagnosis
+#   filter(position == "hdia") %>% # Keep only the main diagnosis
   filter(!is.na(dx) & dx != "") %>% 
   filter(!grepl("-", dx)) %>% # Remove codes with hyphens (ranges)
   # Remove codes not starting with a letter (e.g., .A15)
@@ -89,7 +89,7 @@ red_index_outpat <- index_outpat %>%
   mutate(dx = as.character(trimws(dx, which = "both")),
          patient_id = lopnr, 
          icd_code_type = "ICD-10-WHO") %>%
-  filter(diag == "hdia") %>% # Keep only the main diagnosis
+#   filter(diag == "hdia") %>% # Keep only the main diagnosis
   filter(!is.na(dx) & dx != "") %>% 
   filter(!grepl("-", dx)) %>% # Remove codes with hyphens (ranges)
   # Remove codes not starting with a letter (e.g., .A15)
