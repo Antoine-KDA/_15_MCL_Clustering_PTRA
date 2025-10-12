@@ -46,9 +46,9 @@ for (cohort in c( "main",
     end_period <- 365.24*10 # 10 years
   }
   
-  output_file <- paste0("./Output files/", gsub(" ", "_", format(Sys.time(), "%d %b %Y")), "_Output_Files_", toupper(cohort))
-  result_file <- paste0("./Output files/", gsub(" ", "_", format(Sys.time(), "%d %b %Y")), "_Results_", toupper(cohort))
-  
+  output_file <- paste0("./PTRA Output files/", gsub(" ", "_", format(Sys.time(), "%d %b %Y")), "_Output_Files_", toupper(cohort))
+  result_file <- paste0("./PTRA Output files/", gsub(" ", "_", format(Sys.time(), "%d %b %Y")), "_Results_", toupper(cohort))
+
   dir.create(output_file)
   dir.create(result_file)
 
