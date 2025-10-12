@@ -116,6 +116,8 @@ red_index_outpat <- index_outpat %>%
 
 # Combine inpatient, outpatient, and drug data into one long format
 ptra_diagnosis_data <- bind_rows(red_index_inpat, red_index_outpat) %>%
+ # Reformat the date to be in the correct format of DD/MM/YYYY instead of YYYY-MM-DD
+  mutate(dx_dt = format(dx_dt, "%d/%m/%Y")) %>%
   arrange(patient_id, dx_dt) %>%
   distinct() # Remove duplicates
 
