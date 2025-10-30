@@ -1,0 +1,46 @@
+
+#!/bin/bash
+# experiment_1_full_population_analysis
+# Linux-optimized bash script for PTRA clustering analysis
+# Author: Antoine KDA
+# Created for Linux environments
+
+# Method 1: Using dos2unix (recommended)
+dos2unix ~/projects/experiments/experiment_1_full_population_analysis
+
+# If dos2unix is not installed, install it first:
+sudo apt-get update
+sudo apt-get install dos2unix
+
+# Make executable:
+chmod +x experiment_1_full_population_analysis
+
+# Execute the script
+./experiment_1_full_population_analysis
+
+
+# Remove files 
+rm experiment_1*
+# Move the experiment file to projects
+mv $HOME/experiment_1* $HOME/projects/experiments
+
+
+# All-in-one command - ALL analysis:
+rm $HOME/projects/experiments/experiment_1_full_population_analysis*
+mv $HOME/experiment_1* $HOME/projects/experiments && dos2unix ~/projects/experiments/experiment_1_full_population_analysis && chmod +x ~/projects/experiments/experiment_1_full_population_analysis && ~/projects/experiments/experiment_1_full_population_analysis
+
+# All-in-one command Lymphoma analysis:
+rm $HOME/projects/experiments/experiment_1_lymph_analysis*
+mv $HOME/experiment_1* $HOME/projects/experiments && dos2unix ~/projects/experiments/experiment_1_lymph_analysis && chmod +x ~/projects/experiments/experiment_1_lymph_analysis && ~/projects/experiments/experiment_1_lymph_analysis
+
+
+# Move and update files in the data folder
+rm $HOME/projects/data/*_MAIN.csv && mv $HOME/*_MAIN.csv $HOME/projects/data/
+
+
+# For the toy_data_example script, replace experiment_1_full_population_analysis
+#            with toy_data_example in the above commands.
+
+# All-in-one command to run for toy_data_example:
+rm $HOME/projects/experiments/toy_data_example
+mv $HOME/toy_data_example* $HOME/projects/experiments && dos2unix ~/projects/experiments/toy_data_example && chmod +x ~/projects/experiments/toy_data_example && ~/projects/experiments/toy_data_example

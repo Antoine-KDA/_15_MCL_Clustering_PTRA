@@ -1,0 +1,161 @@
+
+
+
+
+#!/bin/bash
+# experiment_1_full_population_analysis
+# Linux-optimized bash script for PTRA clustering analysis
+# Author: Antoine KDA
+# Created for Linux environments
+
+set -euo pipefail  # Exit on error, undefined vars, pipe failures
+
+# Configuration: define all directories at the top-level
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_BASE="$HOME/projects/experiments"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+LOGFILE="$PROJECT_BASE/experiment_1_full_pop_job_$TIMESTAMP.log"
+PTRA_DIR="$HOME/projects/ptra_who/ptra"
+DATA_DIR="$HOME/projects/data"
+PATIENT_FILE="$DATA_DIR/ptra_all_patients_MAIN.csv"
+ICD_FILE="$DATA_DIR/icd102019en.xml"
+DIAGNOSIS_FILE="$DATA_DIR/ptra_all_diagnosis_MAIN.csv"
+OUTPUT_DIR="$PROJECT_BASE/experiment_1_full_pop_results"
+RESULTS_ARCHIVE="$PROJECT_BASE/experiment_1_full_pop_results_$TIMESTAMP.tar.gz"
+
+
+# Create project directories if they don't exist
+mkdir -p "$PROJECT_BASE"
+mkdir -p "$PROJECT_BASE/logs"
+mkdir -p "$PROJECT_BASE/results"
+
+# Setup logging
+exec > >(tee "$LOGFILE") 2>&1
+
+# Print starting message
+echo "========================================="
+echo "PTRA Clustering Analysis - Experiment 1"
+echo "Started at: $(date)"
+echo "Log file: $LOGFILE"
+echo "========================================="
+echo "                                         "
+
+# Step 1: Verify software environment
+echo "Step 1: Checking software environment..."
+echo "Current directory: $(pwd)"
+
+# Check required software
+command -v mcl >/dev/null 2>&1 || { echo "ERROR: mcl not found. Please install MCL clustering."; exit 1; }
+command -v go >/dev/null 2>&1 || { echo "ERROR: go not found. Please install Go."; exit 1; }
+
+echo "                                         "
+echo "MCL version: $(mcl --version 2>&1 | head -n1 || echo 'Version check failed')"
+echo "Go version: $(go version)"
+
+# Step 2: Build PTRA
+echo "                                         "
+echo "Step 2: Building PTRA..."
+echo "PTRA directory: $PTRA_DIR"
+if [ ! -d "$PTRA_DIR" ]; then
+    echo "ERROR: PTRA directory not found at $PTRA_DIR"
+    echo "Please ensure ptra_who directory exists"
+    exit 1
+fi
+
+cd "$PTRA_DIR"
+echo "Building PTRA in: $(pwd)"
+go build -v
+
+# Verify PTRA binary was created
+if [ ! -f "./ptra" ]; then
+    echo "ERROR: PTRA binary not created"
+    exit 1
+fi
+echo "PTRA build successful"
+
+# Step 3: Verify data files exist
+echo "                                         "
+echo "Step 3: Verifying data files..."
+echo "Data directory: $DATA_DIR"
+echo "Patient file: $PATIENT_FILE"
+echo "Diagnosis file: $DIAGNOSIS_FILE"
+
+for file in "$PATIENT_FILE" "$ICD_FILE" "$DIAGNOSIS_FILE"; do
+    if [ ! -f "$file" ]; then
+        echo "ERROR: Required data file not found: $file"
+        exit 1
+    fi
+    echo "Found: $file ($(du -h "$file" | cut -f1))"
+done
+
+# Step 4: Execute the experiment
+echo "                                         "
+echo "Step 4: Executing PTRA analysis..."
+echo "Output directory: $OUTPUT_DIR"
+mkdir -p "$OUTPUT_DIR"
+
+echo "                                         "
+echo "Output directory: $OUTPUT_DIR"
+echo "Starting analysis..."
+echo "                                         "
+
+./ptra \
+    "$PATIENT_FILE" \
+    "$ICD_FILE" \
+    "$DIAGNOSIS_FILE" \
+    "$OUTPUT_DIR" \
+    --nofAgeGroups 6 \
+    --lvl 2 \
+    --maxYears 40 \
+    --minYears 0.25 \
+    --minPatients 30 \
+    --maxTrajectoryLength 5 \
+    --minTrajectoryLength 3 \
+    --name exp1 \
+    --ICD9ToICD10File "" \
+    --iter 500 \
+    --RR 1 \
+    --tumorInfo "" \
+    --treatmentInfo "" \
+    --cluster \
+    --mclPath /usr/bin/ \
+    --clusterGranularities 40,60,80,100 \
+    --pfilters id \
+    --tfilters id
+
+echo "PTRA analysis completed"
+
+# Step 5: Process and compress results
+echo "Step 5: Processing results..."
+echo "Results archive: $RESULTS_ARCHIVE"
+
+# Check if output directory has content
+if [ -z "$(ls -A "$OUTPUT_DIR" 2>/dev/null)" ]; then
+    echo "WARNING: Output directory is empty"
+else
+    echo "Output files created:"
+    ls -la "$OUTPUT_DIR"
+fi
+
+# Create compressed archive
+echo "Creating archive: $RESULTS_ARCHIVE"
+tar -czf "$RESULTS_ARCHIVE" -C "$PROJECT_BASE" experiment_1_full_pop_results/
+
+# Verify archive was created
+if [ -f "$RESULTS_ARCHIVE" ]; then
+    echo "Archive created successfully: $(du -h "$RESULTS_ARCHIVE" | cut -f1)"
+else
+    echo "ERROR: Failed to create archive"
+    exit 1
+fi
+
+# Step 6: Cleanup and summary
+echo "Step 6: Summary..."
+echo "========================================="
+echo "Analysis completed successfully!"
+echo "Completed at: $(date)"
+echo "Results archived to: $RESULTS_ARCHIVE"
+echo "Log file: $LOGFILE"
+echo "Script directory: $SCRIPT_DIR"
+echo "Total runtime: $SECONDS seconds"
+echo "========================================="
