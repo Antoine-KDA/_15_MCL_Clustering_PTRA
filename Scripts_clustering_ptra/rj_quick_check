@@ -1,0 +1,57 @@
+#!/bin/bash
+#==============================================================================
+# quick_check - Fast daily status check
+# Usage: ./quick_check
+#==============================================================================
+
+EXPERIMENT_DIR="$HOME/projects/experiments"
+PID_FILE="$EXPERIMENT_DIR/experiment.pid"
+
+# Colors
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo "Quick Check - $(date '+%Y-%m-%d %H:%M:%S')"
+echo "============================================"
+
+if [ ! -f "$PID_FILE" ]; then
+    echo -e "${YELLOW}⚠ No experiment running${NC}"
+    exit 0
+fi
+
+PID=$(cat "$PID_FILE")
+
+if ps -p $PID > /dev/null 2>&1; then
+    # Get process info
+    PROC_INFO=$(ps -p $PID -o %cpu,%mem,etime --no-headers)
+    CPU=$(echo $PROC_INFO | awk '{print $1}')
+    MEM=$(echo $PROC_INFO | awk '{print $2}')
+    RUNTIME=$(echo $PROC_INFO | awk '{print $3}')
+    
+    echo -e "${GREEN}✓ Experiment RUNNING${NC}"
+    echo "PID: $PID"
+    echo "Runtime: $RUNTIME"
+    echo "CPU: ${CPU}% | Memory: ${MEM}%"
+    echo "Load: $(uptime | awk -F'load average:' '{print $2}' | xargs)"
+    
+    # Latest log info
+    LATEST_LOG=$(ls -t $EXPERIMENT_DIR/experiment_*.log 2>/dev/null | head -1)
+    if [ -n "$LATEST_LOG" ]; then
+        LOG_SIZE=$(du -h "$LATEST_LOG" | cut -f1)
+        LAST_UPDATE=$(stat -c %y "$LATEST_LOG" | cut -d. -f1)
+        echo "Log: $LOG_SIZE (updated: $LAST_UPDATE)"
+        echo ""
+        echo "Last 3 log lines:"
+        tail -3 "$LATEST_LOG"
+    fi
+    
+    echo ""
+    echo "For details: ./rj_check_status"
+else
+    echo -e "${RED}✗ Experiment NOT running${NC}"
+    echo "PID $PID is dead"
+    echo "Check logs: tail ~/projects/experiments/experiment_*.log"
+    rm -f "$PID_FILE"
+fi

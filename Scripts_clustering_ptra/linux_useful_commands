@@ -44,3 +44,13 @@ rm $HOME/projects/data/*_MAIN.csv && mv $HOME/*_MAIN.csv $HOME/projects/data/
 # All-in-one command to run for toy_data_example:
 rm $HOME/projects/experiments/toy_data_example
 mv $HOME/toy_data_example* $HOME/projects/experiments && dos2unix ~/projects/experiments/toy_data_example && chmod +x ~/projects/experiments/toy_data_example && ~/projects/experiments/toy_data_example
+
+
+# For the generic run on the latest update of PTRA WHO ICD10 ------------------
+###  All-in-one command - ALL analysis:
+rm $HOME/projects/data/*_MAIN.csv && mv $HOME/*_MAIN.csv $HOME/projects/data/ && rm $HOME/projects/experiments/experiment_generic_full_population_analysis*
+mv $HOME/experiment_generic_* $HOME/projects/experiments && dos2unix ~/projects/experiments/experiment_generic_full_population_analysis && chmod +x ~/projects/experiments/experiment_generic_full_population_analysis && ~/projects/experiments/experiment_generic_full_population_analysis
+
+
+dos2unix ~/projects/scripts_to_run_jobs/rj_* && chmod +x ~/projects/scripts_to_run_jobs/rj_*
+dos2unix $HOME/experiment_* && chmod +x $HOME/experiment_*

@@ -1,0 +1,180 @@
+#!/bin/bash
+#==============================================================================
+# EXPERIMENT MANAGEMENT GUIDE
+#==============================================================================
+
+cat << 'EOF'
+========================================
+  PTRA EXPERIMENT JOB MANAGEMENT
+========================================
+
+OVERVIEW
+--------
+This system manages long-running PTRA experiments (2-5 days) that continue
+running even after you disconnect from SSH or shut down your local computer.
+
+QUICK START
+-----------
+1. Launch experiment:
+   ./Run_job_nohup
+
+2. Check status:
+   ./check_experiment_status
+
+3. Watch live:
+   ./watch_experiment
+
+4. Stop experiment:
+   ./stop_experiment
+
+
+DETAILED COMMANDS
+-----------------
+
+1. LAUNCH EXPERIMENT
+   ./Run_job_nohup
+   
+   This will:
+   - Start experiment in background
+   - Create log files
+   - Start automatic monitoring
+   - Return immediately (you can disconnect)
+   
+   The experiment will continue running even if you:
+   - Close your terminal
+   - Disconnect from SSH
+   - Shut down your computer
+
+
+2. CHECK STATUS
+   ./check_experiment_status
+   
+   Shows:
+   - Process status (running/stopped)
+   - CPU and memory usage
+   - Runtime duration
+   - Log file excerpts
+   - Output files created
+   - System resources
+
+
+3. WATCH LIVE
+   ./watch_experiment
+   
+   Real-time monitoring:
+   - Updates every 5 seconds
+   - Shows latest log output
+   - Resource usage graphs
+   - Press Ctrl+C to exit
+   
+   Note: Watching doesn't affect the experiment
+
+
+4. STOP EXPERIMENT
+   ./stop_experiment
+   
+   Safely stops the running experiment:
+   - Prompts for confirmation
+   - Attempts graceful shutdown
+   - Option to force kill if needed
+
+
+MONITORING FILES
+----------------
+All files are in: ~/projects/experiments/
+
+experiment_YYYYMMDD_HHMMSS.log
+   Main log file with experiment output
+
+experiment.pid
+   Process ID of running experiment
+
+experiment_status.txt
+   Experiment information and metadata
+
+experiment_monitor.log
+   Automatic resource usage log (every 5 minutes)
+
+
+MANUAL COMMANDS
+---------------
+Check if running:
+   ps -p $(cat ~/projects/experiments/experiment.pid)
+
+View log live:
+   tail -f ~/projects/experiments/experiment_*.log
+
+Check CPU/memory:
+   top -p $(cat ~/projects/experiments/experiment.pid)
+
+Kill manually:
+   kill $(cat ~/projects/experiments/experiment.pid)
+
+
+TROUBLESHOOTING
+---------------
+
+Q: How do I know if my experiment is still running?
+A: Run: ./check_experiment_status
+   Or: ps aux | grep experiment_generic
+
+Q: The experiment stopped unexpectedly
+A: Check the log file for errors:
+   tail -100 ~/projects/experiments/experiment_*.log
+
+Q: I disconnected, did my experiment stop?
+A: No! That's the point. Check with:
+   ./check_experiment_status
+
+Q: How much disk space do I have?
+A: df -h ~/projects/experiments
+
+Q: Can I run multiple experiments?
+A: Not simultaneously with these scripts. Stop the current one first.
+
+Q: Where are the results?
+A: Check ~/projects/experiment1/
+   The experiment creates output files there
+
+
+BEST PRACTICES
+--------------
+1. Check status before launching new experiment
+2. Monitor the first few minutes after launch
+3. Check status periodically (daily for long runs)
+4. Keep an eye on disk space
+5. Review logs if experiment stops unexpectedly
+
+
+SYSTEM REQUIREMENTS
+-------------------
+- Disk space: Check with 'df -h'
+- Memory: Check with 'free -h'
+- CPU: Multi-core recommended
+- Uptime: System should stay up for 2-5 days
+
+
+AFTER EXPERIMENT COMPLETES
+--------------------------
+1. Check final status:
+   ./check_experiment_status
+
+2. Review complete log:
+   less ~/projects/experiments/experiment_*.log
+
+3. Verify output files:
+   ls -lh ~/projects/experiment1/
+
+4. Archive results:
+   tar -czf experiment_results_$(date +%Y%m%d).tar.gz ~/projects/experiment1/
+
+5. Cleanup (optional):
+   rm ~/projects/experiments/experiment_*.log
+
+
+CONTACT
+-------
+For issues with the experiment scripts, contact: Antoine KDA
+
+========================================
+EOF

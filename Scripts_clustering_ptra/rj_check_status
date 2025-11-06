@@ -1,0 +1,191 @@
+#!/bin/bash
+#==============================================================================
+# check_experiment_status - Monitor running PTRA experiment
+# Author: Antoine KDA
+# Description: Comprehensive status checker for long-running experiments
+#==============================================================================
+
+# Configuration
+EXPERIMENT_DIR="$HOME/projects/experiments"
+PID_FILE="$EXPERIMENT_DIR/experiment.pid"
+STATUS_FILE="$EXPERIMENT_DIR/experiment_status.txt"
+MONITOR_LOG="$EXPERIMENT_DIR/experiment_monitor.log"
+
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+# Function to format time duration
+format_duration() {
+    local T=$1
+    local D=$((T/60/60/24))
+    local H=$((T/60/60%24))
+    local M=$((T/60%60))
+    local S=$((T%60))
+    (( $D > 0 )) && printf '%d days ' $D
+    (( $H > 0 )) && printf '%d hours ' $H
+    (( $M > 0 )) && printf '%d minutes ' $M
+    (( $D > 0 || $H > 0 || $M > 0 )) && printf 'and '
+    printf '%d seconds\n' $S
+}
+
+clear
+echo "=========================================="
+echo "  PTRA Experiment Status Monitor"
+echo "=========================================="
+echo "Check time: $(date)"
+echo ""
+
+# Check if PID file exists
+if [ ! -f "$PID_FILE" ]; then
+    echo -e "${YELLOW}No experiment is currently tracked${NC}"
+    echo "Launch an experiment with: ./Run_job_nohup"
+    exit 0
+fi
+
+# Read PID
+PID=$(cat "$PID_FILE")
+
+# Check if process is running
+if ps -p $PID > /dev/null 2>&1; then
+    echo -e "${GREEN}✓ EXPERIMENT IS RUNNING${NC}"
+    echo ""
+    
+    # Process details
+    echo "=========================================="
+    echo "  Process Information"
+    echo "=========================================="
+    echo "PID: $PID"
+    
+    # Get process details
+    PROCESS_INFO=$(ps -p $PID -o pid,ppid,%cpu,%mem,etime,cmd --no-headers)
+    CPU=$(echo $PROCESS_INFO | awk '{print $3}')
+    MEM=$(echo $PROCESS_INFO | awk '{print $4}')
+    ETIME=$(echo $PROCESS_INFO | awk '{print $5}')
+    
+    echo "CPU Usage: ${CPU}%"
+    echo "Memory Usage: ${MEM}%"
+    echo "Runtime: $ETIME"
+    echo ""
+    
+    # System resources
+    echo "=========================================="
+    echo "  System Resources"
+    echo "=========================================="
+    echo "System Load: $(cat /proc/loadavg | cut -d' ' -f1-3)"
+    echo "Total Memory: $(free -h | grep '^Mem:' | awk '{print $2}')"
+    echo "Available Memory: $(free -h | grep '^Mem:' | awk '{print $7}')"
+    echo "Disk Space (experiment dir): $(df -h $EXPERIMENT_DIR | tail -1 | awk '{print $4 " free of " $2}')"
+    echo ""
+    
+    # Log file info
+    echo "=========================================="
+    echo "  Log Files"
+    echo "=========================================="
+    
+    # Find most recent log
+    LATEST_LOG=$(ls -t $EXPERIMENT_DIR/experiment_*.log 2>/dev/null | head -1)
+    if [ -n "$LATEST_LOG" ]; then
+        echo "Log file: $LATEST_LOG"
+        LOG_SIZE=$(du -h "$LATEST_LOG" | cut -f1)
+        echo "Log size: $LOG_SIZE"
+        echo "Last modified: $(stat -c %y "$LATEST_LOG" | cut -d. -f1)"
+        
+        echo ""
+        echo "Last 10 lines of log:"
+        echo "---"
+        tail -10 "$LATEST_LOG"
+        echo "---"
+    else
+        echo -e "${YELLOW}No log file found${NC}"
+    fi
+    echo ""
+    
+    # Monitor log
+    if [ -f "$MONITOR_LOG" ]; then
+        echo "=========================================="
+        echo "  Resource Usage History"
+        echo "=========================================="
+        echo "Last 5 monitoring entries:"
+        tail -5 "$MONITOR_LOG"
+        echo ""
+    fi
+    
+    # Status file
+    if [ -f "$STATUS_FILE" ]; then
+        echo "=========================================="
+        echo "  Experiment Details"
+        echo "=========================================="
+        cat "$STATUS_FILE"
+        echo ""
+    fi
+    
+    # Output file check
+    OUTPUT_DIR="$HOME/projects/experiment1"
+    if [ -d "$OUTPUT_DIR" ]; then
+        echo "=========================================="
+        echo "  Output Files"
+        echo "=========================================="
+        echo "Output directory: $OUTPUT_DIR"
+        FILE_COUNT=$(find "$OUTPUT_DIR" -type f 2>/dev/null | wc -l)
+        DIR_SIZE=$(du -sh "$OUTPUT_DIR" 2>/dev/null | cut -f1)
+        echo "Files created: $FILE_COUNT"
+        echo "Total size: $DIR_SIZE"
+        echo ""
+        echo "Recent files:"
+        ls -lht "$OUTPUT_DIR"/* 2>/dev/null | head -5 || echo "No files yet"
+        echo ""
+    fi
+    
+    echo "=========================================="
+    echo "  Commands"
+    echo "=========================================="
+    echo "Follow log live:"
+    echo "  tail -f $LATEST_LOG"
+    echo ""
+    echo "Check again:"
+    echo "  ./check_experiment_status"
+    echo ""
+    echo "Stop experiment:"
+    echo "  kill $PID"
+    echo ""
+    
+else
+    echo -e "${RED}✗ EXPERIMENT IS NOT RUNNING${NC}"
+    echo ""
+    echo "PID $PID is not active"
+    echo ""
+    
+    # Check last monitoring entry
+    if [ -f "$MONITOR_LOG" ]; then
+        echo "Last monitoring entry:"
+        tail -1 "$MONITOR_LOG"
+        echo ""
+    fi
+    
+    # Check if log file exists
+    LATEST_LOG=$(ls -t $EXPERIMENT_DIR/experiment_*.log 2>/dev/null | head -1)
+    if [ -n "$LATEST_LOG" ]; then
+        echo "Check log file for errors:"
+        echo "  tail -50 $LATEST_LOG"
+        echo ""
+        echo "Last 20 lines of log:"
+        echo "---"
+        tail -20 "$LATEST_LOG"
+        echo "---"
+        echo ""
+    fi
+    
+    echo "To start a new experiment:"
+    echo "  ./Run_job_nohup"
+    echo ""
+    
+    # Clean up PID file
+    echo -e "${YELLOW}Cleaning up PID file...${NC}"
+    rm -f "$PID_FILE"
+fi
+
+echo "=========================================="
