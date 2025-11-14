@@ -1,8 +1,8 @@
 #!/bin/bash
 #==============================================================================
-# check_experiment_status - Monitor running PTRA experiment
+# rj_check_status - Monitor all running PTRA experiments
 # Author: Antoine KDA
-# Description: Comprehensive status checker for long-running experiments
+# Description: Comprehensive status checker for all experiments
 #==============================================================================
 
 # Configuration
@@ -10,6 +10,7 @@ EXPERIMENT_DIR="$HOME/projects/experiments"
 PID_FILE="$EXPERIMENT_DIR/experiment.pid"
 STATUS_FILE="$EXPERIMENT_DIR/experiment_status.txt"
 MONITOR_LOG="$EXPERIMENT_DIR/experiment_monitor.log"
+PROGRESS_FILE="$EXPERIMENT_DIR/experiment_progress.txt"
 
 # Colors
 GREEN='\033[0;32m'
@@ -34,15 +35,15 @@ format_duration() {
 
 clear
 echo "=========================================="
-echo "  PTRA Experiment Status Monitor"
+echo "  All Experiments Status Monitor"
 echo "=========================================="
 echo "Check time: $(date)"
 echo ""
 
 # Check if PID file exists
 if [ ! -f "$PID_FILE" ]; then
-    echo -e "${YELLOW}No experiment is currently tracked${NC}"
-    echo "Launch an experiment with: ./Run_job_nohup"
+    echo -e "${YELLOW}No experiments are currently tracked${NC}"
+    echo "Launch experiments with: ./rj_run_job_nohup"
     exit 0
 fi
 
@@ -51,8 +52,17 @@ PID=$(cat "$PID_FILE")
 
 # Check if process is running
 if ps -p $PID > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ EXPERIMENT IS RUNNING${NC}"
+    echo -e "${GREEN}✓ ALL EXPERIMENTS ARE RUNNING${NC}"
     echo ""
+    
+    # Progress Information
+    if [ -f "$PROGRESS_FILE" ]; then
+        echo "=========================================="
+        echo "  Experiments Progress"
+        echo "=========================================="
+        cat "$PROGRESS_FILE"
+        echo ""
+    fi
     
     # Process details
     echo "=========================================="
@@ -83,21 +93,21 @@ if ps -p $PID > /dev/null 2>&1; then
     
     # Log file info
     echo "=========================================="
-    echo "  Log Files"
+    echo "  Master Log File"
     echo "=========================================="
     
-    # Find most recent log
-    LATEST_LOG=$(ls -t $EXPERIMENT_DIR/experiment_*.log 2>/dev/null | head -1)
+    # Find most recent master log
+    LATEST_LOG=$(ls -t $EXPERIMENT_DIR/all_experiments_*.log 2>/dev/null | head -1)
     if [ -n "$LATEST_LOG" ]; then
         echo "Log file: $LATEST_LOG"
         LOG_SIZE=$(du -h "$LATEST_LOG" | cut -f1)
         echo "Log size: $LOG_SIZE"
-        echo "Last modified: $(stat -c %y "$LATEST_LOG" | cut -d. -f1)"
+        echo "Last modified: $(stat -c %y "$LATEST_LOG" 2>/dev/null | cut -d. -f1 || stat -f %Sm "$LATEST_LOG")"
         
         echo ""
-        echo "Last 10 lines of log:"
+        echo "Last 15 lines of log:"
         echo "---"
-        tail -10 "$LATEST_LOG"
+        tail -15 "$LATEST_LOG"
         echo "---"
     else
         echo -e "${YELLOW}No log file found${NC}"
@@ -123,41 +133,61 @@ if ps -p $PID > /dev/null 2>&1; then
         echo ""
     fi
     
-    # Output file check
-    OUTPUT_DIR="$HOME/projects/experiment1"
-    if [ -d "$OUTPUT_DIR" ]; then
-        echo "=========================================="
-        echo "  Output Files"
-        echo "=========================================="
-        echo "Output directory: $OUTPUT_DIR"
-        FILE_COUNT=$(find "$OUTPUT_DIR" -type f 2>/dev/null | wc -l)
-        DIR_SIZE=$(du -sh "$OUTPUT_DIR" 2>/dev/null | cut -f1)
-        echo "Files created: $FILE_COUNT"
-        echo "Total size: $DIR_SIZE"
-        echo ""
-        echo "Recent files:"
-        ls -lht "$OUTPUT_DIR"/* 2>/dev/null | head -5 || echo "No files yet"
-        echo ""
-    fi
+    # Output directories check
+    echo "=========================================="
+    echo "  Output Directories"
+    echo "=========================================="
+    for i in {1..7}; do
+        OUTPUT_DIR="$HOME/projects/experiment${i}"
+        if [ -d "$OUTPUT_DIR" ]; then
+            FILE_COUNT=$(find "$OUTPUT_DIR" -type f 2>/dev/null | wc -l)
+            DIR_SIZE=$(du -sh "$OUTPUT_DIR" 2>/dev/null | cut -f1)
+            echo "Experiment $i: $FILE_COUNT files, $DIR_SIZE"
+        fi
+    done
+    echo ""
     
     echo "=========================================="
     echo "  Commands"
     echo "=========================================="
-    echo "Follow log live:"
+    echo "Quick check:"
+    echo "  ./rj_quick_check"
+    echo ""
+    echo "Follow master log:"
     echo "  tail -f $LATEST_LOG"
     echo ""
-    echo "Check again:"
-    echo "  ./check_experiment_status"
+    echo "Watch live progress:"
+    echo "  ./rj_watch_experiment"
     echo ""
-    echo "Stop experiment:"
-    echo "  kill $PID"
+    echo "View progress file:"
+    echo "  cat $PROGRESS_FILE"
+    echo ""
+    echo "Stop all experiments:"
+    echo "  ./rj_stop_experiment"
     echo ""
     
 else
-    echo -e "${RED}✗ EXPERIMENT IS NOT RUNNING${NC}"
+    echo -e "${RED}✗ EXPERIMENTS ARE NOT RUNNING${NC}"
     echo ""
     echo "PID $PID is not active"
     echo ""
+    
+    # Check progress file for completion status
+    if [ -f "$PROGRESS_FILE" ]; then
+        echo "=========================================="
+        echo "  Final Progress"
+        echo "=========================================="
+        cat "$PROGRESS_FILE"
+        echo ""
+        
+        STATUS=$(grep "^Status:" "$PROGRESS_FILE" | cut -d: -f2- | xargs)
+        if [[ "$STATUS" == *"FINISHED"* ]]; then
+            echo -e "${GREEN}✓ All experiments completed successfully!${NC}"
+        else
+            echo -e "${YELLOW}⚠ Experiments stopped unexpectedly${NC}"
+        fi
+        echo ""
+    fi
     
     # Check last monitoring entry
     if [ -f "$MONITOR_LOG" ]; then
@@ -167,9 +197,9 @@ else
     fi
     
     # Check if log file exists
-    LATEST_LOG=$(ls -t $EXPERIMENT_DIR/experiment_*.log 2>/dev/null | head -1)
+    LATEST_LOG=$(ls -t $EXPERIMENT_DIR/all_experiments_*.log 2>/dev/null | head -1)
     if [ -n "$LATEST_LOG" ]; then
-        echo "Check log file for errors:"
+        echo "Check master log for details:"
         echo "  tail -50 $LATEST_LOG"
         echo ""
         echo "Last 20 lines of log:"
@@ -179,8 +209,8 @@ else
         echo ""
     fi
     
-    echo "To start a new experiment:"
-    echo "  ./Run_job_nohup"
+    echo "To start new experiments:"
+    echo "  ./rj_run_job_nohup"
     echo ""
     
     # Clean up PID file

@@ -1,30 +1,32 @@
 #!/bin/bash
 #==============================================================================
-# watch_experiment - Continuously monitor experiment progress
+# rj_watch_experiment - Continuously monitor all experiments progress
 # Author: Antoine KDA
-# Description: Real-time monitoring dashboard for running experiment
+# Description: Real-time monitoring dashboard for all running experiments
 #==============================================================================
 
 EXPERIMENT_DIR="$HOME/projects/experiments"
 PID_FILE="$EXPERIMENT_DIR/experiment.pid"
+PROGRESS_FILE="$EXPERIMENT_DIR/experiment_progress.txt"
 REFRESH_INTERVAL=5  # seconds
 
 # Colors
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Check if experiment is running
 if [ ! -f "$PID_FILE" ]; then
-    echo "No experiment running"
+    echo "No experiments running"
     exit 1
 fi
 
 PID=$(cat "$PID_FILE")
 
 if ! ps -p $PID > /dev/null 2>&1; then
-    echo "Experiment process (PID: $PID) is not running"
+    echo "Experiments process (PID: $PID) is not running"
     exit 1
 fi
 
@@ -35,7 +37,7 @@ echo ""
 while ps -p $PID > /dev/null 2>&1; do
     clear
     echo "=========================================="
-    echo "  LIVE EXPERIMENT MONITOR"
+    echo "  LIVE ALL EXPERIMENTS MONITOR"
     echo "=========================================="
     echo "Time: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "PID: $PID"
@@ -51,17 +53,52 @@ while ps -p $PID > /dev/null 2>&1; do
     echo "CPU: ${CPU}%  |  Memory: ${MEM}%  |  Runtime: $RUNTIME"
     echo ""
     
+    # Progress information
+    if [ -f "$PROGRESS_FILE" ]; then
+        echo -e "${BLUE}=========================================="
+        echo "  EXPERIMENTS PROGRESS"
+        echo "==========================================${NC}"
+        
+        TOTAL=$(grep "^Total Experiments:" "$PROGRESS_FILE" | cut -d: -f2 | xargs)
+        CURRENT=$(grep "^Current Experiment:" "$PROGRESS_FILE" | cut -d: -f2 | xargs)
+        CURRENT_NAME=$(grep "^Current Name:" "$PROGRESS_FILE" | cut -d: -f2- | xargs)
+        COMPLETED=$(grep "^Completed:" "$PROGRESS_FILE" | cut -d: -f2 | xargs)
+        FAILED=$(grep "^Failed:" "$PROGRESS_FILE" | cut -d: -f2 | xargs)
+        STATUS=$(grep "^Status:" "$PROGRESS_FILE" | cut -d: -f2- | xargs)
+        
+        echo -e "${GREEN}Completed: $COMPLETED / $TOTAL${NC}"
+        if [ "$FAILED" != "0" ]; then
+            echo -e "${RED}Failed: $FAILED${NC}"
+        fi
+        echo "Current (#$CURRENT): $CURRENT_NAME"
+        echo "Status: $STATUS"
+        
+        # Progress bar
+        PERCENT=$((COMPLETED * 100 / TOTAL))
+        BAR_WIDTH=40
+        FILLED=$((PERCENT * BAR_WIDTH / 100))
+        printf "Progress: ["
+        printf "%${FILLED}s" | tr ' ' '='
+        printf "%$((BAR_WIDTH - FILLED))s" | tr ' ' '-'
+        printf "] %d%%\n" $PERCENT
+        echo ""
+    fi
+    
     # System stats
-    echo "System Load: $(uptime | awk -F'load average:' '{print $2}')"
+    echo "=========================================="
+    echo "  SYSTEM STATUS"
+    echo "=========================================="
+    echo "Load: $(uptime | awk -F'load average:' '{print $2}')"
     echo "Memory: $(free -h | grep '^Mem:' | awk '{print $3 " / " $2 " (" $7 " available)"}')"
     echo ""
     
     # Log tail
-    LATEST_LOG=$(ls -t $EXPERIMENT_DIR/experiment_*.log 2>/dev/null | head -1)
+    LATEST_LOG=$(ls -t $EXPERIMENT_DIR/all_experiments_*.log 2>/dev/null | head -1)
     if [ -n "$LATEST_LOG" ]; then
         LOG_SIZE=$(du -h "$LATEST_LOG" | cut -f1)
-        echo "Log: $LOG_SIZE | $(basename $LATEST_LOG)"
-        echo "---"
+        echo "=========================================="
+        echo "  MASTER LOG ($LOG_SIZE)"
+        echo "=========================================="
         tail -15 "$LATEST_LOG"
         echo "---"
     fi
@@ -73,5 +110,5 @@ while ps -p $PID > /dev/null 2>&1; do
 done
 
 echo ""
-echo -e "${RED}Experiment process has ended${NC}"
-echo "Check status with: ./rj_check_status"
+echo -e "${RED}All experiments process has ended${NC}"
+echo "Check final status with: ./rj_check_status"

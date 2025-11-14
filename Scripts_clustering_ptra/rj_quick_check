@@ -1,16 +1,18 @@
 #!/bin/bash
 #==============================================================================
-# quick_check - Fast daily status check
-# Usage: ./quick_check
+# rj_quick_check - Fast daily status check for all experiments
+# Usage: ./rj_quick_check
 #==============================================================================
 
 EXPERIMENT_DIR="$HOME/projects/experiments"
 PID_FILE="$EXPERIMENT_DIR/experiment.pid"
+PROGRESS_FILE="$EXPERIMENT_DIR/experiment_progress.txt"
 
 # Colors
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
 echo "Quick Check - $(date '+%Y-%m-%d %H:%M:%S')"
@@ -30,28 +32,68 @@ if ps -p $PID > /dev/null 2>&1; then
     MEM=$(echo $PROC_INFO | awk '{print $2}')
     RUNTIME=$(echo $PROC_INFO | awk '{print $3}')
     
-    echo -e "${GREEN}✓ Experiment RUNNING${NC}"
+    echo -e "${GREEN}✓ All Experiments RUNNING${NC}"
     echo "PID: $PID"
     echo "Runtime: $RUNTIME"
     echo "CPU: ${CPU}% | Memory: ${MEM}%"
     echo "Load: $(uptime | awk -F'load average:' '{print $2}' | xargs)"
+    echo ""
+    
+    # Show progress information
+    if [ -f "$PROGRESS_FILE" ]; then
+        echo -e "${BLUE}Progress Summary:${NC}"
+        echo "---"
+        TOTAL=$(grep "^Total Experiments:" "$PROGRESS_FILE" | cut -d: -f2 | xargs)
+        CURRENT=$(grep "^Current Experiment:" "$PROGRESS_FILE" | cut -d: -f2 | xargs)
+        CURRENT_NAME=$(grep "^Current Name:" "$PROGRESS_FILE" | cut -d: -f2- | xargs)
+        COMPLETED=$(grep "^Completed:" "$PROGRESS_FILE" | cut -d: -f2 | xargs)
+        FAILED=$(grep "^Failed:" "$PROGRESS_FILE" | cut -d: -f2 | xargs)
+        STATUS=$(grep "^Status:" "$PROGRESS_FILE" | cut -d: -f2- | xargs)
+        STARTED=$(grep "^Started:" "$PROGRESS_FILE" | cut -d: -f2- | xargs)
+        
+        echo "Experiments: $COMPLETED of $TOTAL completed"
+        if [ "$FAILED" != "0" ]; then
+            echo -e "${RED}Failed: $FAILED${NC}"
+        fi
+        echo "Current (#$CURRENT): $CURRENT_NAME"
+        echo "Status: $STATUS"
+        echo "Started: $STARTED"
+        echo "---"
+    fi
     
     # Latest log info
-    LATEST_LOG=$(ls -t $EXPERIMENT_DIR/experiment_*.log 2>/dev/null | head -1)
+    LATEST_LOG=$(ls -t $EXPERIMENT_DIR/all_experiments_*.log 2>/dev/null | head -1)
     if [ -n "$LATEST_LOG" ]; then
         LOG_SIZE=$(du -h "$LATEST_LOG" | cut -f1)
-        LAST_UPDATE=$(stat -c %y "$LATEST_LOG" | cut -d. -f1)
-        echo "Log: $LOG_SIZE (updated: $LAST_UPDATE)"
+        LAST_UPDATE=$(stat -c %y "$LATEST_LOG" 2>/dev/null | cut -d. -f1 || stat -f %Sm "$LATEST_LOG")
         echo ""
-        echo "Last 3 log lines:"
-        tail -3 "$LATEST_LOG"
+        echo "Master Log: $LOG_SIZE (updated: $LAST_UPDATE)"
+        echo ""
+        echo "Last 5 log lines:"
+        tail -5 "$LATEST_LOG"
     fi
     
     echo ""
     echo "For details: ./rj_check_status"
+    echo "Watch live: ./rj_watch_experiment"
 else
-    echo -e "${RED}✗ Experiment NOT running${NC}"
+    echo -e "${RED}✗ Experiments NOT running${NC}"
     echo "PID $PID is dead"
-    echo "Check logs: tail ~/projects/experiments/experiment_*.log"
+    
+    # Check if finished successfully
+    if [ -f "$PROGRESS_FILE" ]; then
+        STATUS=$(grep "^Status:" "$PROGRESS_FILE" | cut -d: -f2- | xargs)
+        if [[ "$STATUS" == *"FINISHED"* ]]; then
+            echo -e "${GREEN}✓ All experiments completed!${NC}"
+            echo ""
+            cat "$PROGRESS_FILE"
+        else
+            echo -e "${YELLOW}⚠ Experiments stopped unexpectedly${NC}"
+            echo "Check logs: tail ~/projects/experiments/all_experiments_*.log"
+        fi
+    else
+        echo "Check logs: tail ~/projects/experiments/all_experiments_*.log"
+    fi
+    
     rm -f "$PID_FILE"
 fi

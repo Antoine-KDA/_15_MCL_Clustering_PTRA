@@ -1,5 +1,6 @@
 #!/bin/bash
-# experiment_generic_full_population_analysis
+# experiment_gen2_full_population_analysis
+# GEN2: Full cohort - no restriction (minPatients=50)
 # Linux-optimized bash script for PTRA clustering analysis
 # Author: Antoine KDA
 # Created for Linux environments
@@ -10,14 +11,14 @@ set -euo pipefail  # Exit on error, undefined vars, pipe failures
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_BASE="$HOME/projects/experiments"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-LOGFILE="$PROJECT_BASE/experiment_gen1_full_pop_job_$TIMESTAMP.log"
+LOGFILE="$PROJECT_BASE/experiment_gen2_full_pop_job_$TIMESTAMP.log"
 PTRA_DIR="$HOME/projects/ptra_who/ptra"
 DATA_DIR="$HOME/projects/data"
 PATIENT_FILE="$DATA_DIR/ptra_all_patients_MAIN.csv"
 ICD_FILE="$DATA_DIR/icd102019en.xml"
 DIAGNOSIS_FILE="$DATA_DIR/ptra_all_diagnosis_MAIN.csv"
-OUTPUT_DIR="$PROJECT_BASE/experiment_gen1_full_pop_results"
-RESULTS_ARCHIVE="$PROJECT_BASE/experiment_gen1_full_pop_results_$TIMESTAMP.tar.gz"
+OUTPUT_DIR="$PROJECT_BASE/experiment_gen2_full_pop_results"
+RESULTS_ARCHIVE="$PROJECT_BASE/experiment_gen2_full_pop_results_$TIMESTAMP.tar.gz"
 
 
 # Create project directories if they don't exist
@@ -30,7 +31,8 @@ exec > >(tee "$LOGFILE") 2>&1
 
 # Print starting message
 echo "========================================="
-echo "PTRA Clustering Analysis - Experiment 1"
+echo "PTRA Clustering Analysis - Experiment GEN2"
+echo "Full cohort - no restriction (minPatients=50)"
 echo "Started at: $(date)"
 echo "Log file: $LOGFILE"
 echo "========================================="
@@ -104,10 +106,10 @@ echo "                                         "
     --lvl 2 \
     --maxYears 40 \
     --minYears 0.25 \
-    --minPatients 30 \
+    --minPatients 50 \
     --maxTrajectoryLength 5 \
     --minTrajectoryLength 3 \
-    --name exp1 \
+    --name exp2 \
     --iter 500 \
     --RR 1 \
     --cluster \
@@ -132,7 +134,7 @@ fi
 
 # Create compressed archive
 echo "Creating archive: $RESULTS_ARCHIVE"
-tar -czf "$RESULTS_ARCHIVE" -C "$PROJECT_BASE" experiment_gen1_full_pop_results/
+tar -czf "$RESULTS_ARCHIVE" -C "$PROJECT_BASE" experiment_gen2_full_pop_results/
 
 # # Verify archive was created
 # if [ -f "$RESULTS_ARCHIVE" ]; then

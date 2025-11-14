@@ -1,0 +1,130 @@
+#!/bin/bash
+#==============================================================================
+# run_all_experiments_sequential.sh
+# Run all 7 PTRA experiments sequentially
+# Author: Antoine KDA
+# WARNING: This will run for 14-35 days total (2-5 days per experiment)
+#==============================================================================
+
+set -euo pipefail
+
+# Configuration
+SCRIPTS_DIR="$HOME/projects/experiments"
+LOG_DIR="$HOME/projects/experiments/logs"
+MASTER_LOG="$LOG_DIR/all_experiments_$(date +%Y%m%d_%H%M%S).log"
+
+mkdir -p "$LOG_DIR"
+
+# Experiments to run in order
+EXPERIMENTS=(
+    "experiment_generic_full_population_analysis"
+    "experiment_gen2_full_population_analysis"
+    "experiment_gen3_one_neoplasm_analysis"
+    "experiment_gen4_controls_only_analysis"
+    "experiment_gen5_lymph_only_analysis"
+    "experiment_gen6_lymph_up_to_entry_analysis"
+    "experiment_gen7_full_up_to_entry_analysis"
+)
+
+# Colors
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+# Logging function
+log() {
+    echo -e "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$MASTER_LOG"
+}
+
+log "=========================================="
+log "  PTRA All Experiments Sequential Runner"
+log "=========================================="
+log "Started at: $(date)"
+log "Total experiments: ${#EXPERIMENTS[@]}"
+log "Estimated total time: 14-35 days"
+log ""
+
+# Check if all scripts exist
+log "Checking experiment scripts..."
+for exp in "${EXPERIMENTS[@]}"; do
+    if [ ! -f "$SCRIPTS_DIR/$exp" ]; then
+        log "${RED}ERROR: Script not found: $SCRIPTS_DIR/$exp${NC}"
+        exit 1
+    fi
+    log "  ✓ Found: $exp"
+done
+log ""
+
+# Confirm before starting
+log "${YELLOW}WARNING: This will run for approximately 2-5 weeks!${NC}"
+log "Press Ctrl+C within 10 seconds to cancel..."
+sleep 10
+
+log "Starting sequential execution..."
+log ""
+
+# Run each experiment
+TOTAL_START=$(date +%s)
+COMPLETED=0
+FAILED=0
+
+for i in "${!EXPERIMENTS[@]}"; do
+    EXP_NUM=$((i + 1))
+    EXP_NAME="${EXPERIMENTS[$i]}"
+    
+    log "=========================================="
+    log "  Experiment $EXP_NUM of ${#EXPERIMENTS[@]}: $EXP_NAME"
+    log "=========================================="
+    
+    EXP_START=$(date +%s)
+    
+    # Make executable
+    chmod +x "$SCRIPTS_DIR/$EXP_NAME"
+    
+    # Run experiment
+    log "Starting $EXP_NAME..."
+    if "$SCRIPTS_DIR/$EXP_NAME" >> "$MASTER_LOG" 2>&1; then
+        EXP_END=$(date +%s)
+        EXP_DURATION=$((EXP_END - EXP_START))
+        EXP_HOURS=$((EXP_DURATION / 3600))
+        
+        log "${GREEN}✓ Completed: $EXP_NAME${NC}"
+        log "  Duration: $EXP_HOURS hours ($EXP_DURATION seconds)"
+        ((COMPLETED++))
+    else
+        log "${RED}✗ Failed: $EXP_NAME${NC}"
+        log "  Check logs for details"
+        ((FAILED++))
+        
+        # Ask whether to continue
+        log "${YELLOW}Experiment failed. Continue with remaining experiments? (yes/no)${NC}"
+        read -p "Continue? " CONTINUE
+        if [ "$CONTINUE" != "yes" ]; then
+            log "Stopping execution at user request"
+            break
+        fi
+    fi
+    
+    log ""
+done
+
+TOTAL_END=$(date +%s)
+TOTAL_DURATION=$((TOTAL_END - TOTAL_START))
+TOTAL_DAYS=$((TOTAL_DURATION / 86400))
+TOTAL_HOURS=$(((TOTAL_DURATION % 86400) / 3600))
+
+log "=========================================="
+log "  All Experiments Completed"
+log "=========================================="
+log "Completed successfully: $COMPLETED"
+log "Failed: $FAILED"
+log "Total duration: $TOTAL_DAYS days, $TOTAL_HOURS hours"
+log "Finished at: $(date)"
+log "=========================================="
+log ""
+log "Check individual experiment results in:"
+log "  $HOME/projects/experiments/experiment_gen*_results/"
+log ""
+log "Master log: $MASTER_LOG"

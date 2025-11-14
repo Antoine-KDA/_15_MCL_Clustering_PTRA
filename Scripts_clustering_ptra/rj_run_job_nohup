@@ -1,22 +1,32 @@
 #!/bin/bash
 #==============================================================================
-# Run_job_nohup - Launch and manage long-running PTRA experiment
+# rj_run_job_nohup - Launch and manage all 7 PTRA experiments sequentially
 # Author: Antoine KDA
-# Description: Launches experiment as background job that survives SSH disconnect
-# Expected runtime: 2-5 days
+# Description: Launches all experiments as background job that survives SSH disconnect
+# Expected runtime: 14-35 days (7 experiments × 2-5 days each)
 #==============================================================================
 
 set -euo pipefail
 
 # Configuration
 EXPERIMENT_DIR="$HOME/projects/experiments"
-SCRIPT_NAME="experiment_generic_full_population_analysis"
-SCRIPT_PATH="$EXPERIMENT_DIR/$SCRIPT_NAME"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-LOG_FILE="$EXPERIMENT_DIR/experiment_${TIMESTAMP}.log"
+MASTER_LOG="$EXPERIMENT_DIR/all_experiments_${TIMESTAMP}.log"
 PID_FILE="$EXPERIMENT_DIR/experiment.pid"
 STATUS_FILE="$EXPERIMENT_DIR/experiment_status.txt"
 MONITOR_LOG="$EXPERIMENT_DIR/experiment_monitor.log"
+PROGRESS_FILE="$EXPERIMENT_DIR/experiment_progress.txt"
+
+# List of all experiments to run
+EXPERIMENTS=(
+    # "experiment_generic_full_population_analysis"  # Already completed
+    # "experiment_gen2_full_population_analysis"
+    "experiment_gen3_one_neoplasm_analysis"
+    "experiment_gen4_controls_only_analysis"
+    "experiment_gen5_lymph_only_analysis"
+    "experiment_gen6_lymph_up_to_entry_analysis"
+    # "experiment_gen7_full_up_to_entry_analysis"  # Data not ready yet
+)
 
 # Create necessary directories
 mkdir -p "$EXPERIMENT_DIR"
@@ -25,27 +35,24 @@ mkdir -p "$EXPERIMENT_DIR"
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo "=========================================="
-echo "  PTRA Experiment Job Launcher"
+echo "  PTRA All Experiments Job Launcher"
 echo "=========================================="
 echo "Started at: $(date)"
+echo "Total experiments: ${#EXPERIMENTS[@]}"
+echo "Expected total runtime: 14-35 days"
 echo ""
 
-# Check if experiment script exists
-if [ ! -f "$SCRIPT_PATH" ]; then
-    echo -e "${RED}ERROR: Experiment script not found at $SCRIPT_PATH${NC}"
-    exit 1
-fi
-
-# Check if job is already running
+# Check if any job is already running
 if [ -f "$PID_FILE" ]; then
     OLD_PID=$(cat "$PID_FILE")
     if ps -p "$OLD_PID" > /dev/null 2>&1; then
-        echo -e "${YELLOW}WARNING: Experiment is already running (PID: $OLD_PID)${NC}"
-        echo "Use './check_experiment_status' to monitor"
-        echo "Or kill with: kill $OLD_PID"
+        echo -e "${YELLOW}WARNING: Experiments are already running (PID: $OLD_PID)${NC}"
+        echo "Use './rj_quick_check' to monitor"
+        echo "Or stop with: ./rj_stop_experiment"
         exit 1
     else
         echo "Removing stale PID file..."
@@ -53,29 +60,195 @@ if [ -f "$PID_FILE" ]; then
     fi
 fi
 
-# Make script executable
-chmod +x "$SCRIPT_PATH"
-echo -e "${GREEN}✓${NC} Script is executable"
+# Check if all experiment scripts exist
+echo "Checking experiment scripts..."
+MISSING=0
+for exp in "${EXPERIMENTS[@]}"; do
+    if [ ! -f "$EXPERIMENT_DIR/$exp" ]; then
+        echo -e "${RED}✗ Missing: $exp${NC}"
+        ((MISSING++))
+    else
+        echo -e "${GREEN}✓${NC} Found: $exp"
+    fi
+done
 
-# Record start information
-cat > "$STATUS_FILE" << EOF
-Experiment Status
-=================
-Script: $SCRIPT_NAME
-Started: $(date)
-PID: (will be updated after launch)
-Log: $LOG_FILE
-Host: $(hostname)
-User: $USER
-EOF
+if [ $MISSING -gt 0 ]; then
+    echo -e "${RED}ERROR: $MISSING experiment script(s) missing${NC}"
+    exit 1
+fi
 
 echo ""
-echo "Launching experiment in background..."
-echo "Expected runtime: 2-5 days"
+echo -e "${YELLOW}WARNING: This will run all 7 experiments (14-35 days total)${NC}"
+echo "Press Ctrl+C within 5 seconds to cancel..."
+sleep 5
+
+# Make all scripts executable
+echo ""
+echo "Making scripts executable..."
+for exp in "${EXPERIMENTS[@]}"; do
+    chmod +x "$EXPERIMENT_DIR/$exp"
+done
+echo -e "${GREEN}✓${NC} All scripts are executable"
+
+# Create the master execution script
+RUNNER_SCRIPT="$EXPERIMENT_DIR/experiment_runner.sh"
+cat > "$RUNNER_SCRIPT" << 'RUNNER_EOF'
+#!/bin/bash
+# set -euo pipefail
+
+# Configuration from parent script
+EXPERIMENT_DIR="$HOME/projects/experiments"
+MASTER_LOG="$1"
+PROGRESS_FILE="$EXPERIMENT_DIR/experiment_progress.txt"
+
+# Experiments list
+EXPERIMENTS=(
+    # "experiment_generic_full_population_analysis"  # Already completed
+    # "experiment_gen2_full_population_analysis"
+    "experiment_gen3_one_neoplasm_analysis"
+    "experiment_gen4_controls_only_analysis"
+    "experiment_gen5_lymph_only_analysis"
+    "experiment_gen6_lymph_up_to_entry_analysis"
+    # "experiment_gen7_full_up_to_entry_analysis"  # Data not ready yet
+)
+
+# Logging function
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$MASTER_LOG"
+}
+
+# Initialize progress file
+cat > "$PROGRESS_FILE" << EOF
+Total Experiments: ${#EXPERIMENTS[@]}
+Current Experiment: 0
+Completed: 0
+Failed: 0
+Status: Initializing
+Started: $(date)
+Last Update: $(date)
+EOF
+
+log "=========================================="
+log "  All Experiments Sequential Execution"
+log "=========================================="
+log "Total experiments: ${#EXPERIMENTS[@]}"
+log ""
+
+TOTAL_START=$(date +%s)
+COMPLETED=0
+FAILED=0
+
+for i in "${!EXPERIMENTS[@]}"; do
+    EXP_NUM=$((i + 1))
+    EXP_NAME="${EXPERIMENTS[$i]}"
+    
+    # Update progress file
+    cat > "$PROGRESS_FILE" << EOF
+Total Experiments: ${#EXPERIMENTS[@]}
+Current Experiment: $EXP_NUM
+Current Name: $EXP_NAME
+Completed: $COMPLETED
+Failed: $FAILED
+Status: Running $EXP_NAME
+Started: $(date -d @$TOTAL_START 2>/dev/null || date -r $TOTAL_START)
+Last Update: $(date)
+EOF
+    
+    log "=========================================="
+    log "  Experiment $EXP_NUM of ${#EXPERIMENTS[@]}"
+    log "  Name: $EXP_NAME"
+    log "=========================================="
+    
+    EXP_START=$(date +%s)
+    
+    # Run experiment
+    log "Starting $EXP_NAME..."
+    if "$EXPERIMENT_DIR/$EXP_NAME" >> "$MASTER_LOG" 2>&1; then
+        EXP_END=$(date +%s)
+        EXP_DURATION=$((EXP_END - EXP_START))
+        EXP_DAYS=$((EXP_DURATION / 86400))
+        EXP_HOURS=$(((EXP_DURATION % 86400) / 3600))
+        EXP_MINS=$(((EXP_DURATION % 3600) / 60))
+        
+        log "✓ COMPLETED: $EXP_NAME"
+        log "  Duration: ${EXP_DAYS}d ${EXP_HOURS}h ${EXP_MINS}m"
+        ((COMPLETED++))
+    else
+        log "✗ FAILED: $EXP_NAME"
+        log "  Check master log for details"
+        ((FAILED++))
+    fi
+    
+    # Update progress
+    cat > "$PROGRESS_FILE" << EOF
+Total Experiments: ${#EXPERIMENTS[@]}
+Current Experiment: $EXP_NUM
+Current Name: $EXP_NAME (finished)
+Completed: $COMPLETED
+Failed: $FAILED
+Status: Moving to next experiment
+Started: $(date -d @$TOTAL_START 2>/dev/null || date -r $TOTAL_START)
+Last Update: $(date)
+EOF
+    
+    log ""
+done
+
+TOTAL_END=$(date +%s)
+TOTAL_DURATION=$((TOTAL_END - TOTAL_START))
+TOTAL_DAYS=$((TOTAL_DURATION / 86400))
+TOTAL_HOURS=$(((TOTAL_DURATION % 86400) / 3600))
+
+# Final progress update
+cat > "$PROGRESS_FILE" << EOF
+Total Experiments: ${#EXPERIMENTS[@]}
+Current Experiment: ${#EXPERIMENTS[@]}
+Completed: $COMPLETED
+Failed: $FAILED
+Status: ALL EXPERIMENTS FINISHED
+Started: $(date -d @$TOTAL_START 2>/dev/null || date -r $TOTAL_START)
+Finished: $(date)
+Total Duration: ${TOTAL_DAYS} days, ${TOTAL_HOURS} hours
+Last Update: $(date)
+EOF
+
+log "=========================================="
+log "  ALL EXPERIMENTS COMPLETED"
+log "=========================================="
+log "Completed successfully: $COMPLETED"
+log "Failed: $FAILED"
+log "Total duration: $TOTAL_DAYS days, $TOTAL_HOURS hours"
+log "Finished at: $(date)"
+log "=========================================="
+RUNNER_EOF
+
+chmod +x "$RUNNER_SCRIPT"
+
+# Initialize status file
+cat > "$STATUS_FILE" << EOF
+All Experiments Status
+======================
+Total Experiments: ${#EXPERIMENTS[@]}
+Started: $(date)
+PID: (will be updated after launch)
+Master Log: $MASTER_LOG
+Progress File: $PROGRESS_FILE
+Host: $(hostname)
+User: $USER
+
+Experiments to run:
+EOF
+
+for i in "${!EXPERIMENTS[@]}"; do
+    echo "  $((i+1)). ${EXPERIMENTS[$i]}" >> "$STATUS_FILE"
+done
+
+echo ""
+echo "Launching all experiments in background..."
 echo ""
 
 # Launch with nohup
-nohup "$SCRIPT_PATH" > "$LOG_FILE" 2>&1 &
+nohup "$RUNNER_SCRIPT" "$MASTER_LOG" > /dev/null 2>&1 &
 
 # Save PID
 EXPERIMENT_PID=$!
@@ -89,10 +262,10 @@ sleep 2
 
 # Verify process is running
 if ps -p $EXPERIMENT_PID > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ Experiment launched successfully!${NC}"
+    echo -e "${GREEN}✓ All experiments launched successfully!${NC}"
 else
     echo -e "${RED}✗ ERROR: Process failed to start${NC}"
-    echo "Check log file: $LOG_FILE"
+    echo "Check log file: $MASTER_LOG"
     exit 1
 fi
 
@@ -102,6 +275,7 @@ cat > "$EXPERIMENT_DIR/monitor_daemon.sh" << 'MONITOR_EOF'
 #!/bin/bash
 PID_FILE="$HOME/projects/experiments/experiment.pid"
 MONITOR_LOG="$HOME/projects/experiments/experiment_monitor.log"
+PROGRESS_FILE="$HOME/projects/experiments/experiment_progress.txt"
 
 if [ ! -f "$PID_FILE" ]; then
     exit 0
@@ -115,13 +289,22 @@ while ps -p $PID > /dev/null 2>&1; do
     MEM=$(ps -p $PID -o %mem= | xargs)
     TIME=$(ps -p $PID -o etime= | xargs)
     
-    echo "$TIMESTAMP | PID: $PID | CPU: ${CPU}% | MEM: ${MEM}% | Runtime: $TIME" >> "$MONITOR_LOG"
+    # Get current experiment from progress file
+    if [ -f "$PROGRESS_FILE" ]; then
+        CURRENT=$(grep "Current Name:" "$PROGRESS_FILE" | cut -d: -f2- | xargs)
+        COMPLETED=$(grep "^Completed:" "$PROGRESS_FILE" | cut -d: -f2 | xargs)
+    else
+        CURRENT="Unknown"
+        COMPLETED="?"
+    fi
+    
+    echo "$TIMESTAMP | PID: $PID | CPU: ${CPU}% | MEM: ${MEM}% | Runtime: $TIME | Current: $CURRENT | Done: $COMPLETED/7" >> "$MONITOR_LOG"
     
     sleep 300  # Log every 5 minutes
 done
 
 # Process ended, log final status
-echo "$(date '+%Y-%m-%d %H:%M:%S') | Process $PID ended" >> "$MONITOR_LOG"
+echo "$(date '+%Y-%m-%d %H:%M:%S') | All experiments process (PID: $PID) ended" >> "$MONITOR_LOG"
 MONITOR_EOF
 
 chmod +x "$EXPERIMENT_DIR/monitor_daemon.sh"
@@ -135,43 +318,50 @@ echo "=========================================="
 echo "  Job Information"
 echo "=========================================="
 echo "Process ID (PID): $EXPERIMENT_PID"
-echo "Log file: $LOG_FILE"
+echo "Master log: $MASTER_LOG"
 echo "Status file: $STATUS_FILE"
+echo "Progress file: $PROGRESS_FILE"
 echo "Monitor log: $MONITOR_LOG"
+echo ""
+echo "Experiments (in order):"
+for i in "${!EXPERIMENTS[@]}"; do
+    echo "  $((i+1)). ${EXPERIMENTS[$i]}"
+done
 echo ""
 echo "=========================================="
 echo "  Quick Commands"
 echo "=========================================="
-echo "Check if running:"
-echo "  ps -p $EXPERIMENT_PID"
-echo ""
-echo "View live log:"
-echo "  tail -f $LOG_FILE"
-echo ""
-echo "Check status:"
+echo "Check progress:"
 echo "  ./rj_quick_check"
 echo ""
-echo "Monitor resource usage:"
+echo "View progress file:"
+echo "  cat $PROGRESS_FILE"
+echo ""
+echo "View live log:"
+echo "  tail -f $MASTER_LOG"
+echo ""
+echo "Monitor resources:"
 echo "  tail -f $MONITOR_LOG"
 echo ""
-echo "Stop experiment:"
+echo "Stop all experiments:"
 echo "  ./rj_stop_experiment"
 echo ""
 echo "=========================================="
 echo ""
-echo -e "${GREEN}Experiment is now running in background${NC}"
+echo -e "${GREEN}All experiments are now running in background${NC}"
+echo -e "${YELLOW}Expected completion: 14-35 days${NC}"
 echo "You can safely close this SSH session"
 echo ""
 echo "Quick check: ./rj_quick_check"
 echo "Watch live: ./rj_watch_experiment"
 echo ""
 
-# Display first few lines of log
-echo "Initial log output:"
+# Display initial progress
+echo "Initial progress:"
 echo "---"
-sleep 1
-head -20 "$LOG_FILE" 2>/dev/null || echo "(Log file not yet populated)"
+sleep 2
+cat "$PROGRESS_FILE" 2>/dev/null || echo "(Progress file not yet created)"
 echo "---"
 echo ""
-echo "Use 'tail -f $LOG_FILE' to follow progress"
+echo "Monitor progress with: cat $PROGRESS_FILE"
 echo ""
